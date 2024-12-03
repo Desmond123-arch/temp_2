@@ -19,34 +19,50 @@ func init() {
 }
 
 func Getall(c *fiber.Ctx) error {
-	if err != nil {
-		log.Printf("Database Error: %s", err)
-		return err
-	}
+	log.Println("Starting Getall function")
 	
+	if err != nil {
+		log.Printf("Initial Database Connection Error: %s", err)
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Database connection failed",
+		})
+	}
+	log.Println("Database connection successful")
+	
+	// Create table if not exists
+	log.Println("Attempting to create table if not exists")
 	_, err := db.NewCreateTable().
 		Model(&models.Products{}).
 		IfNotExists().
 		Exec(dbCtx)
 	
 	if err != nil {
-		log.Printf("Database Error: %s", err)
+		log.Printf("Table Creation Error: %v", err)
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"error": "Failed to create table",
+			"details": err.Error(),
 		})
 	}
+	log.Println("Table creation/check completed")
 
+	log.Println("Attempting to fetch products")
 	var products []models.Products
 	err = db.NewSelect().
 		Model(&products).
 		Relation("Category").
 		Relation("Supplier").
+		
 		Scan(dbCtx)
 
 	if err != nil {
-		log.Printf("Database Error: %s", err)
-		return err
+		log.Printf("Product Query Error: %s", err)
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Failed to fetch products",
+			"details": err.Error(),
+		})
 	}
+	log.Printf("Successfully fetched %d products", len(products))
+
 	if len(products) == 0 {
 		return c.Status(fiber.StatusNoContent).JSON([]models.Products{})
 	}
@@ -266,6 +282,8 @@ func Delete(c *fiber.Ctx) error {
 
 // GetProductsByCategory retrieves all products in a specific category
 func GetProductsByCategory(c *fiber.Ctx) error {
+	log.Println("Starting GetProductsByCategory function")
+	
 	if err != nil {
 		log.Printf("Database Error: %s", err)
 		return err
@@ -276,26 +294,36 @@ func GetProductsByCategory(c *fiber.Ctx) error {
 	// Parse the category ID string to UUID
 	parsedCategoryID, err := uuid.Parse(categoryID)
 	if err != nil {
+		log.Printf("Category ID Parse Error: %s", err)
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"error": "Invalid category ID format",
+			"details": err.Error(),
 		})
 	}
 
-	var products []models.Products
+	// Modified to select only ID and Name
+	var products []struct {
+		ID   uuid.UUID `json:"id"`
+		Name string    `json:"name"`
+	}
 	err = db.NewSelect().
-		Model(&products).
+		Model((*models.Products)(nil)).
+		Column("id", "name").
 		Where("category_id = ?", parsedCategoryID).
-		Scan(dbCtx)
+		Scan(dbCtx, &products)
 
 	if err != nil {
-		log.Printf("Database Error: %s", err)
+		log.Printf("Database Query Error: %s", err)
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"error": "Failed to fetch products",
+			"details": err.Error(),
 		})
 	}
 
+	log.Printf("Successfully fetched %d products for category %s", len(products), categoryID)
+
 	if len(products) == 0 {
-		return c.Status(fiber.StatusNoContent).JSON([]models.Products{})
+		return c.Status(fiber.StatusNoContent).JSON([]struct{}{})
 	}
 
 	return c.Status(fiber.StatusOK).JSON(products)
@@ -303,6 +331,8 @@ func GetProductsByCategory(c *fiber.Ctx) error {
 
 // GetProductsBySupplier retrieves all products from a specific supplier
 func GetProductsBySupplier(c *fiber.Ctx) error {
+	log.Println("Starting GetProductsBySupplier function")
+	
 	if err != nil {
 		log.Printf("Database Error: %s", err)
 		return err
@@ -313,26 +343,36 @@ func GetProductsBySupplier(c *fiber.Ctx) error {
 	// Parse the supplier ID string to UUID
 	parsedSupplierID, err := uuid.Parse(supplierID)
 	if err != nil {
+		log.Printf("Supplier ID Parse Error: %s", err)
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"error": "Invalid supplier ID format",
+			"details": err.Error(),
 		})
 	}
 
-	var products []models.Products
+	// Modified to select only ID and Name
+	var products []struct {
+		ID   uuid.UUID `json:"id"`
+		Name string    `json:"name"`
+	}
 	err = db.NewSelect().
-		Model(&products).
+		Model((*models.Products)(nil)).
+		Column("id", "name").
 		Where("supplier_id = ?", parsedSupplierID).
-		Scan(dbCtx)
+		Scan(dbCtx, &products)
 
 	if err != nil {
-		log.Printf("Database Error: %s", err)
+		log.Printf("Database Query Error: %s", err)
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"error": "Failed to fetch products",
+			"details": err.Error(),
 		})
 	}
 
+	log.Printf("Successfully fetched %d products for supplier %s", len(products), supplierID)
+
 	if len(products) == 0 {
-		return c.Status(fiber.StatusNoContent).JSON([]models.Products{})
+		return c.Status(fiber.StatusNoContent).JSON([]struct{}{})
 	}
 
 	return c.Status(fiber.StatusOK).JSON(products)
