@@ -15,7 +15,7 @@ var db, err = database.ConnectDb()
 var dbCtx context.Context
 var cancel context.CancelFunc
 func init() {
-	dbCtx, cancel = context.WithTimeout(context.Background(), 5*time.Minute)
+	dbCtx, cancel = context.WithTimeout(context.Background(), 30*24*time.Hour)
 }
 
 func Getall(c *fiber.Ctx) error {
