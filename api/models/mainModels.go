@@ -27,15 +27,15 @@ type Category struct {
     bun.BaseModel `bun:"table:categories"`
 
     ID   uuid.UUID `bun:"id,pk,type:uuid,default:gen_random_uuid()"`
-    Name string    `bun:"name,notnull"`
+    Name string    `bun:"name,notnull,unique"`
 }
 
 type Supplier struct {
     bun.BaseModel `bun:"table:suppliers"`
 
     ID    uuid.UUID `bun:"id,pk,type:uuid,default:gen_random_uuid()"`
-    Name  string    `bun:"name,notnull"`
-    Email string    `bun:"email"`
+    Name  string    `bun:"name,notnull,unique"`
+    Email string    `bun:"email,unique"`
     Phone string    `bun:"phone"`
 }
 type Status string

@@ -1,7 +1,9 @@
 package handlers
 
 import (
+	"fmt"
 	"log"
+	"strings"
 
 	"devops.zedeks.com/TheHiddenDeveloper/ims-zedeks/api/models"
 	"github.com/gofiber/fiber/v2"
@@ -9,12 +11,11 @@ import (
 
 // Get all categories
 func GetAllCategories(c *fiber.Ctx) error {
-	if err != nil {
-		log.Printf("Database Error: %s", err)
-		return err
-	}
-	
-	_, err := db.NewCreateTable().Model(&models.Category{}).IfNotExists().Exec(dbCtx)
+	_, err := db.NewCreateTable().
+		Model(&models.Category{}).
+		IfNotExists().
+		WithForeignKeys().
+		Exec(dbCtx)
 	
 	if err != nil {
 		log.Printf("Database Error: %s", err)
@@ -27,7 +28,9 @@ func GetAllCategories(c *fiber.Ctx) error {
 	err = db.NewSelect().Model(&categories).Scan(dbCtx)
 	if err != nil {
 		log.Printf("Database Error: %s", err)
-		return err
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Failed to fetch categories",
+		})
 	}
 
 	if len(categories) == 0 {
@@ -38,24 +41,42 @@ func GetAllCategories(c *fiber.Ctx) error {
 
 // Create a new category
 func CreateCategory(c *fiber.Ctx) error {
-	if err != nil {
-		log.Printf("Database Error: %s", err)
-		return err
-	}
-
 	var category models.Category
 	if err := c.BodyParser(&category); err != nil {
 		log.Printf("Parse Error: %s", err)
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"error": "Invalid request body",
+			"details": err.Error(),
 		})
 	}
 
-	_, err = db.NewInsert().Model(&category).Exec(dbCtx)
+	// Validate required fields
+	if category.Name == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Validation failed",
+			"details": "Category name is required and cannot be empty",
+		})
+	}
+
+	log.Printf("Attempting to create category: %+v", category)
+
+	_, err := db.NewInsert().Model(&category).Exec(dbCtx)
 	if err != nil {
-		log.Printf("Database Error: %s", err)
+		log.Printf("Full Database Error: %+v", err)
+		
+		// Check for unique constraint violations
+		if strings.Contains(strings.ToLower(err.Error()), "unique constraint") || 
+		   strings.Contains(strings.ToLower(err.Error()), "duplicate key") {
+			return c.Status(fiber.StatusConflict).JSON(fiber.Map{
+				"error": "Duplicate entry",
+				"details": fmt.Sprintf("A category with the name '%s' already exists", category.Name),
+				"field": "name",
+			})
+		}
+		
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": "Failed to create category",
+			"error": "Database operation failed",
+			"details": "Failed to create category. Please try again later",
 		})
 	}
 
@@ -91,10 +112,10 @@ func UpdateCategory(c *fiber.Ctx) error {
 	}
 
 	id := c.Params("id")
-	var category models.Category
+	var originalCategory models.Category
 
 	// Check if category exists
-	err = db.NewSelect().Model(&category).Where("id = ?", id).Scan(dbCtx)
+	err = db.NewSelect().Model(&originalCategory).Where("id = ?", id).Scan(dbCtx)
 	if err != nil {
 		log.Printf("Database Error: %s", err)
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
@@ -102,20 +123,42 @@ func UpdateCategory(c *fiber.Ctx) error {
 		})
 	}
 
-	// Parse the update data
+	var category models.Category
 	if err := c.BodyParser(&category); err != nil {
 		log.Printf("Parse Error: %s", err)
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"error": "Invalid request body",
+			"details": err.Error(),
 		})
 	}
+
+	// Validate required fields
+	if category.Name == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Validation failed",
+			"details": "Category name is required",
+		})
+	}
+
+	// Preserve the ID from the original category
+	category.ID = originalCategory.ID
 
 	// Perform the update
 	_, err = db.NewUpdate().Model(&category).Where("id = ?", id).Exec(dbCtx)
 	if err != nil {
 		log.Printf("Database Error: %s", err)
+		// Check for unique constraint violations
+		if strings.Contains(strings.ToLower(err.Error()), "unique constraint") || 
+		   strings.Contains(strings.ToLower(err.Error()), "duplicate key") {
+			return c.Status(fiber.StatusConflict).JSON(fiber.Map{
+				"error": "Duplicate entry",
+				"details": fmt.Sprintf("A category with the name '%s' already exists", category.Name),
+				"field": "name",
+			})
+		}
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"error": "Failed to update category",
+			"details": "Database operation failed",
 		})
 	}
 
