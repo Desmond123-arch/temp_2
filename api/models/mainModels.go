@@ -38,6 +38,7 @@ type Supplier struct {
     Email string    `bun:"email"`
     Phone string    `bun:"phone"`
 }
+
 type Status string
 
 func (s *Status) Scan(value interface{}) error {

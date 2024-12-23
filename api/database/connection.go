@@ -1,6 +1,7 @@
 package database
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"log"
@@ -12,6 +13,10 @@ import (
 	"github.com/uptrace/bun/driver/pgdriver"
 )
 
+var (
+	DB  *bun.DB
+	Ctx context.Context
+)
 
 func ConnectDb() (*bun.DB, error) {
 	if err := godotenv.Load(); err != nil {
@@ -27,9 +32,40 @@ func ConnectDb() (*bun.DB, error) {
 
 	db := bun.NewDB(sqldb, pgdialect.New())
 
+	// Set connection pool settings
+	db.SetMaxOpenConns(25)
+	db.SetMaxIdleConns(25)
+
 	if err := db.Ping(); err != nil {
 		return nil, fmt.Errorf("failed to connect to database: %w", err)
 	}
 
+	// Initialize tables
+	if err := InitializeTables(db, context.Background()); err != nil {
+		return nil, fmt.Errorf("failed to initialize tables: %w", err)
+	}
+
+	// Initialize global variables
+	DB = db
+	Ctx = context.Background()
+
 	return db, nil
+}
+
+func GetDB() *bun.DB {
+	if DB == nil {
+		var err error
+		DB, err = ConnectDb()
+		if err != nil {
+			log.Fatalf("Failed to connect to database: %v", err)
+		}
+	}
+	return DB
+}
+
+func GetContext() context.Context {
+	if Ctx == nil {
+		Ctx = context.Background()
+	}
+	return Ctx
 }

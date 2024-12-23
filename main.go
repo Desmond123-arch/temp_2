@@ -1,8 +1,11 @@
 package main
 
 import (
+	"context"
 	"fmt"
+	"log"
 	"os"
+	"devops.zedeks.com/TheHiddenDeveloper/ims-zedeks/api/database"
 	"devops.zedeks.com/TheHiddenDeveloper/ims-zedeks/api/handlers"
 	"github.com/gofiber/fiber/v2"
 	"github.com/joho/godotenv"
@@ -12,6 +15,17 @@ func main() {
 	// Load .env file
 	if err := godotenv.Load(); err != nil {
 		fmt.Println("Error loading .env file")
+	}
+
+	db, err := database.ConnectDb()
+	if err != nil {
+		log.Fatalf("Failed to connect to database: %v", err)
+	}
+
+	// Initialize tables
+	ctx := context.Background()
+	if err := database.InitializeTables(db, ctx); err != nil {
+		log.Fatalf("Failed to initialize tables: %v", err)
 	}
 
 	app := fiber.New()
