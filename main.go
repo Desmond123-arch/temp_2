@@ -19,7 +19,7 @@ func main() {
 
 	db, err := database.ConnectDb()
 	if err != nil {
-		log.Fatalf("Failed to connect to database: %v", err)
+		log.Fatalf("Error connecting to database: %v", err)
 	}
 
 	// Initialize tables
